@@ -14,7 +14,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configurações globais
-MAX_WORKERS = 2
+MAX_WORKERS = 1
 OUTPUT_DIR = "analises_cv"
 GROQ_CLIENT = GroqClient()
 
