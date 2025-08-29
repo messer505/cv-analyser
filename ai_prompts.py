@@ -147,36 +147,46 @@ class GroqClient:
         except:
             opening_text = opening_json[:1500]
         
-        prompt = f"""SISTEMA: Você é um especialista em RH que analisa currículos com precisão técnica.
+        prompt = f"""
+            SISTEMA: Você é um especialista em RH, muito justo e rigoroso, que analisa currículos e os pontua de forma precisa, sem dar notas muito parecidas. Sua pontuação deve refletir a aderência do candidato aos requisitos da vaga.
 
-                TAREFA: Analise o CV vs VAGA e retorne APENAS JSON válido (sem explicações, markdown ou texto extra).
+            TAREFA: Analise o CV vs VAGA e retorne APENAS JSON válido (sem explicações, markdown ou texto extra).
 
-                CURRÍCULO:
-                {cv_text}
+            CURRÍCULO:
+            {cv_text}
 
-                VAGA:
-                {opening_text}
+            VAGA:
+            {opening_text}
 
-                FORMATO EXATO:
-                {{
-                "brief_content": "## Nome Completo\\n[Nome]\\n\\n## Habilidades Técnicas\\n[Lista separada por vírgula]\\n\\n## Habilidades Comportamentais\\n[Lista separada por vírgula]\\n\\n## Local\\n[Localização]\\n\\n## Disponibilidade\\n[Info disponibilidade]",
-                "conclusion": "## Pontos de Alinhamento\\n[3-4 pontos específicos]\\n\\n## Pontos de Desalinhamento\\n[2-3 pontos específicos]\\n\\n## Pontos de Atenção\\n[2-3 observações importantes]",
-                "score": [número 0.0-10.0],
-                "structured_data": {{
-                    "name": "[Nome completo]",
-                    "formal_education": "[Formação principal]",
-                    "hard_skills": ["[max 8 skills]"],
-                    "soft_skills": ["[max 6 skills]"]
-                }}
-                }}
+            FORMATO EXATO:
+            {{
+            "conclusion": "## Pontos de Alinhamento\\n- [3-4 pontos específicos]\\n\\n## Pontos de Desalinhamento\\n- [2-3 pontos específicos]\\n\\n## Pontos de Atenção\\n- [2-3 observações importantes]",
+            "score": [número 0.0-10.0],
+            "structured_data": {{
+            "name": "[Nome completo]",
+            "formal_education": "[Formação principal]",
+            "hard_skills": ["[max 8 skills]"],
+            "soft_skills": ["[max 6 skills]"]
+            }}
+            }}
 
-                CRITÉRIOS SCORE:
-                - Experiência relevante: 35%
-                - Skills técnicas: 30% 
-                - Formação: 20%
-                - Soft skills: 15%
+            CRITÉRIOS DE PONTUAÇÃO (DETALHADOS):
+            - Pontuação base (6.0): Todo candidato começa com esta nota.
+            - Experiência Profissional (Peso 3.0): Adiciona até 3.0 pontos se a experiência for diretamente relevante para a vaga. Subtrai até 3.0 pontos se a experiência for irrelevante ou inexistente.
+            - Hard Skills (Peso 2.0): Adiciona 0.5 por cada hard skill listada na vaga que o candidato possui. Subtrai 0.5 por cada hard skill obrigatória na vaga que o candidato não possui.
+            - Soft Skills (Peso 1.0): Adiciona 0.2 por cada soft skill listada na vaga que o candidato possui.
+            - Formação (Peso 1.0): Adiciona até 1.0 ponto se a formação for diretamente relacionada à vaga.
+            - Pontos de desalinhamento (Penalidade -1.0 a -3.0): Subtrai de 1.0 a 3.0 pontos dependendo da gravidade dos pontos de desalinhamento.
+            - Bônus (até 2.0 pontos): Adiciona pontos extras por diferenciais como certificações, cursos relevantes e experiência em projetos notáveis.
 
-                RETORNE APENAS O JSON."""
+            Exemplo de pontuação:
+            - Candidato Ideal: Experiência 100% alinhada, todas as skills, formação perfeita. Pontuação: 9.5 a 10.0.
+            - Candidato Forte: Experiência relevante, mas falta 1-2 skills. Pontuação: 8.0 a 9.4.
+            - Candidato Mediano: Pouca experiência, mas possui algumas skills. Pontuação: 6.0 a 7.9.
+            - Candidato Fraco: Experiência irrelevante, falta skills essenciais. Pontuação: Abaixo de 6.0.
+
+            RETORNE APENAS O JSON.
+        """
 
         response = self.generate_response(prompt, max_retries=4)
         
@@ -185,10 +195,12 @@ class GroqClient:
             
         parsed_json = _safe_json_parse(response)
         
-        if not parsed_json or not all(k in parsed_json for k in ["brief_content", "conclusion", "score", "structured_data"]):
+        # --- LINHA CORRIGIDA: AQUI ESTAVA A CAUSA DO ERRO ---
+        # Removido 'brief_content' da validação, pois o prompt não o solicita
+        if not parsed_json or not all(k in parsed_json for k in ["conclusion", "score", "structured_data"]):
             return None
-        
-        # Normaliza dados
+    
+    # Normaliza dados
         try:
             parsed_json["score"] = _clamp(float(parsed_json["score"]), 0.0, 10.0)
             
