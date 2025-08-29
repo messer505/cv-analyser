@@ -116,7 +116,6 @@ python config_init.py
 ## 📞 Contato
 
 * Autor: Messer
-* Email: [claraborgespsic@gmail.com](mailto:claraborgespsic@gmail.com)
 * Projeto: `cv-analyser`
 
 ---
