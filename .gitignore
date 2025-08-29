@@ -1,0 +1,29 @@
+# Arquivos de autenticação e configuração
+token.json
+credentials.json
+.env
+
+# Configurações locais
+config.ini
+config_init.py
+
+# Pasta de autenticação/local
+drive/
+
+# Python
+__pycache__/
+*.pyc
+
+# Visual Studio
+*.user
+*.suo
+
+# Logs
+*.log
+
+# Node.js
+node_modules/
+dist/
+
+# Banco de CVs baixados
+banco-de-talentos/
