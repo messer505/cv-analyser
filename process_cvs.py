@@ -32,14 +32,12 @@ def load_job_openings() -> Dict[str, Any]:
         with open(json_file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             
-            # Valida se a chave 'openings' existe e é um dicionário
             if "openings" not in data or not isinstance(data["openings"], dict):
                 logger.error(f"Erro: A chave 'openings' não foi encontrada ou não é um dicionário em '{json_file_path}'.")
                 return {}
             
             openings_dict = data["openings"]
             
-            # Constrói o dicionário principal usando o título como chave
             processed_openings = {}
             for key, job in openings_dict.items():
                 if 'title' in job and 'id' in job and 'folder' in job:
@@ -65,7 +63,7 @@ console_lock = threading.Lock()
 def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
     """Processa um único CV e gera a análise de alinhamento."""
     
-    MAX_RETRIES = 3
+    MAX_RETRIES = 5
     retries = 0
     full_analysis = None
     
@@ -75,12 +73,11 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
 
         cv_text = extract_text_from_file(cv_path)
         
-        # Verifica se o texto é inválido ou muito curto
-        if not cv_text or len(cv_text.split()) < 500:
+        if not cv_text or len(cv_text.split()) < 50: # Verificação para um texto minimamente aceitável
             with console_lock:
-                logger.error(f"O conteúdo extraído de '{os.path.basename(cv_path)}' é inválido ou muito curto. Pulando.")
+                logger.error(f"Falha na extração de texto do CV {os.path.basename(cv_path)} ou conteúdo muito curto. Pulando.")
             return
-        
+
         # Limita e limpa o texto para garantir uma requisição segura
         cleaned_cv_text = ' '.join(cv_text.split()[:4000])
         
@@ -124,19 +121,22 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
     conclusion = full_analysis.get('conclusion', 'Conclusão não gerada.')
     score = full_analysis.get('score', 0.0)
     structured_data = full_analysis.get('structured_data', {})
+    total_experience_years = full_analysis.get('total_experience_years', 'Não avaliado')
 
     # Criação do diretório e escrita do arquivo
     output_folder = os.path.join(OUTPUT_DIR, opening_data.get('folder', 'outros'))
     os.makedirs(output_folder, exist_ok=True)
     candidate_name = structured_data.get('name', os.path.basename(cv_path))
     safe_name = "".join(c for c in candidate_name if c.isalnum() or c in (' ', '.', '_')).rstrip()
-    output_file = os.path.join(output_folder, f"{safe_name}.md")
+    safe_opening_title = "".join(c for c in opening_data.get('title', 'vaga_desconhecida') if c.isalnum() or c in (' ', '_')).rstrip().replace(' ', '_')
+    output_file = os.path.join(output_folder, f"{safe_name}_{safe_opening_title}.md")
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(f"# Análise do Currículo\n\n")
         f.write(f"## {candidate_name}\n")
         f.write(f"**Vaga:** {opening_data.get('title', 'N/A')}\n") 
-        f.write(f"**Pontuação:** {score:.2f}/10\n\n")
+        f.write(f"**Pontuação:** {score:.2f}/10\n")
+        f.write(f"**Tempo de Experiência:** {total_experience_years} anos\n\n")
         f.write(f"---\n\n")
         f.write(f"## Resumo do Candidato\n")
         
@@ -157,7 +157,7 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
         logger.info(f"Análise de {candidate_name} para a vaga '{opening_data.get('title', 'N/A')}' salva em {output_file}")
 
 def main():
-    """Função principal para processar todos os CVs para todas as vagas."""
+    """Função principal para processar currículos de desenvolvimento para todas as vagas de desenvolvimento."""
     
     cv_base_dir = "banco-de-talentos"
     
@@ -165,29 +165,48 @@ def main():
         logger.error("Nenhuma vaga encontrada para processamento. Verifique o arquivo 'openings_db.json'.")
         return
 
-    for opening_title, opening_data in JOB_OPENINGS.items():
-        with console_lock:
-            logger.info(f"## Processando candidatos para a vaga: {opening_title} (ID: {opening_data.get('id', 'N/A')}) ##")
+    # 1. Identifica a pasta de currículos de desenvolvimento
+    development_folder_name = "desenvolvimento"
+    folder_path = os.path.join(cv_base_dir, development_folder_name)
+    
+    if not os.path.exists(folder_path):
+        logger.error(f"Diretório de currículos de desenvolvimento não encontrado: {folder_path}. Abortando.")
+        return
+    
+    # 2. Coleta todos os currículos da pasta de desenvolvimento
+    cv_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(('.pdf', '.docx'))]
+    if not cv_files:
+        logger.warning(f"Nenhum currículo encontrado no diretório '{folder_path}'.")
+        return
 
-        folder_path = os.path.join(cv_base_dir, opening_data.get('folder', 'outros'))
+    # 3. Coleta todas as vagas que são de desenvolvimento
+    development_openings = [
+        data for title, data in JOB_OPENINGS.items()
+        if data.get('folder', '').lower() == development_folder_name
+    ]
+
+    if not development_openings:
+        logger.error("Nenhuma vaga de desenvolvimento encontrada no openings_db.json. Abortando.")
+        return
+
+    logger.info(f"## Processando {len(cv_files)} currículos para {len(development_openings)} vagas de desenvolvimento. ##")
+
+    # 4. Inicia o processamento paralelo
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = []
+        # Loop aninhado: para cada currículo, processe para cada vaga de desenvolvimento
+        for cv_file in cv_files:
+            for opening_data in development_openings:
+                futures.append(executor.submit(process_single_cv, cv_file, opening_data))
         
-        if not os.path.exists(folder_path):
-            with console_lock:
-                logger.warning(f"Diretório de CVs não encontrado: {folder_path}. Pulando.")
-            continue
-            
-        cv_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(('.pdf', '.docx'))]
-        with console_lock:
-            logger.info(f"Encontrados {len(cv_files)} CVs em '{folder_path}'.")
+        # Aguarda todas as tarefas serem concluídas
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                logger.error(f"Uma das tarefas de processamento falhou: {e}")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = [executor.submit(process_single_cv, cv_file, opening_data) for cv_file in cv_files]
-            
-            for future in concurrent.futures.as_completed(futures):
-                pass 
-                
-        with console_lock:
-            logger.info(f"## Processamento para a vaga '{opening_title}' concluído. ##\n")
+    logger.info(f"## Processamento de todos os currículos de desenvolvimento para as vagas relevantes concluído. ##\n")
 
 if __name__ == "__main__":
     main()

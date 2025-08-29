@@ -148,7 +148,9 @@ class GroqClient:
             opening_text = opening_json[:1500]
         
         prompt = f"""
-            SISTEMA: Você é um especialista em RH, muito justo e rigoroso, que analisa currículos e os pontua de forma precisa, sem dar notas muito parecidas. Sua pontuação deve refletir a aderência do candidato aos requisitos da vaga.
+            SISTEMA: Você é um especialista em RH, muito justo e rigoroso, que analisa currículos e os pontua de forma precisa, sem dar notas muito parecidas. Sua pontuação deve refletir a aderência do candidato aos requisitos da vaga e a senioridade para a qual ele está mais apto.
+
+            **ATENÇÃO: A pontuação deve ser drasticamente diferente para cada nível de senioridade. Um candidato júnior para uma vaga sênior deve ter uma pontuação muito baixa (abaixo de 3.0), assim como um sênior para uma vaga júnior deve ter uma pontuação mediana (4.0-6.0), para mostrar que não há alinhamento direto.**
 
             TAREFA: Analise o CV vs VAGA e retorne APENAS JSON válido (sem explicações, markdown ou texto extra).
 
@@ -162,32 +164,56 @@ class GroqClient:
             {{
             "conclusion": "## Pontos de Alinhamento\\n- [3-4 pontos específicos]\\n\\n## Pontos de Desalinhamento\\n- [2-3 pontos específicos]\\n\\n## Pontos de Atenção\\n- [2-3 observações importantes]",
             "score": [número 0.0-10.0],
+            "total_experience_years": [número de anos],
             "structured_data": {{
             "name": "[Nome completo]",
             "formal_education": "[Formação principal]",
-            "hard_skills": ["[max 8 skills]"],
-            "soft_skills": ["[max 6 skills]"]
+            "hard_skills": ["[max 12 skills]"],
+            "soft_skills": ["[max 8 skills]"]
             }}
             }}
 
             CRITÉRIOS DE PONTUAÇÃO (DETALHADOS):
-            - Pontuação base (6.0): Todo candidato começa com esta nota.
-            - Experiência Profissional (Peso 3.0): Adiciona até 3.0 pontos se a experiência for diretamente relevante para a vaga. Subtrai até 3.0 pontos se a experiência for irrelevante ou inexistente.
+            - Pontuação base (0.0): Todo candidato começa com esta nota.
+            - Experiência Profissional Relevante (Peso 2.5): Adiciona até 3.0 pontos se a experiência for diretamente relevante para a vaga. Subtrai até 3.0 pontos se a experiência for irrelevante ou inexistente.
+            - **TEMPO TOTAL DE EXPERIÊNCIA (Peso 2.5):** Calcule o tempo total de experiência profissional do candidato em anos. Adicione pontos à nota final com base nesta tabela:
+                - Menos de 1 ano: +0.5 ponto
+                - 1 a 2 anos: +1.0 ponto
+                - 2 a 3 anos: +1.5 pontos
+                - 3 a 5 anos: +2.0 pontos
+                - 5 a 10 anos: +2.5 pontos
+                - Mais de 10 anos: +4.0 pontos
             - Hard Skills (Peso 2.0): Adiciona 0.5 por cada hard skill listada na vaga que o candidato possui. Subtrai 0.5 por cada hard skill obrigatória na vaga que o candidato não possui.
-            - Soft Skills (Peso 1.0): Adiciona 0.2 por cada soft skill listada na vaga que o candidato possui.
+            - Soft Skills (Peso 2.0): Adiciona 0.5 por cada soft skill listada na vaga que o candidato possui.
             - Formação (Peso 1.0): Adiciona até 1.0 ponto se a formação for diretamente relacionada à vaga.
-            - Pontos de desalinhamento (Penalidade -1.0 a -3.0): Subtrai de 1.0 a 3.0 pontos dependendo da gravidade dos pontos de desalinhamento.
-            - Bônus (até 2.0 pontos): Adiciona pontos extras por diferenciais como certificações, cursos relevantes e experiência em projetos notáveis.
+            - Pontos de desalinhamento (Penalidade -0.5 a -3.0): Subtrai até 3.0 pontos no total dependendo da gravidade dos pontos de desalinhamento. Analisa questões como sequência de experiências profissionais muito curtas (meses), falta de alinhamento técnico e falta de experiência com projetos relevantes para a vaga, falta de skills essenciais, entre outros. A gravidade deverá ser considerada. Por exemplo falta de experiência profissional na área é mais grave do que na subárea.
+            - Bônus (0.5 a 2.0 pontos): Adiciona até 2.0 pontos extras no total por diferenciais como competências desejáveis ou diferenciais, e outros, como certificações, cursos relevante, experiência em projetos compatíveis com a vaga, tempo maior de passagem profissional na área, entre outros.
+
+            **AJUSTE DE PONTUAÇÃO (FATOR DE PONDERAÇÃO FINAL)**
+            - Após calcular a pontuação inicial com todos os critérios acima, aplique um ajuste final com base no tempo de experiência do candidato versus a senioridade da vaga. Este é o fator mais importante e determina a nota final.
+            - **Alinhamento Perfeito:** Se o tempo de experiência do candidato for ideal para a vaga, multiplique a pontuação por um fator de 1.25.
+            - **Alinhamento Baixo (Júnior/Estagiário em Vaga Pleno/Sênior):** Se o tempo de experiência do candidato for muito abaixo do ideal para a vaga, multiplique a pontuação por um fator de 0.75. A nota final deve ser muito baixa, mesmo que existam outros pontos positivos no currículo.
+            - **Alinhamento Alto (Sênior em Vaga Júnior):** Se o tempo de experiência do candidato for muito acima do ideal para a vaga, multiplique a pontuação por um fator de 0.75. Isso reflete um desalinhamento de expectativas.
+
+            CRITÉRIOS DE SENIORIDADE (Para referência do seu modelo de raciocínio):
+            Analise a quantidade e a qualidade da experiência, a complexidade dos projetos, a liderança e a autonomia demonstradas pelo candidato no currículo. Compare com os requisitos da vaga para determinar a senioridade mais adequada.
+
+            **Mapeamento de Senioridade:**
+            - Estagiário/Assistente: Sem experiência ou experiência muito limitada (até 1 ano), pouca autonomia. Ou então anos de estágio.
+            - **Analista I ou Júnior:** 1-2 anos de experiência relevante, precisa de supervisão.
+            - **Analista II ou Pleno:** 3-5 anos de experiência, demonstra autonomia e proatividade, pode liderar projetos menores.
+            - **Analista III ou Sênior:** Mais de 5 anos de experiência, liderança comprovada, capacidade de atuar como mentor, resolve problemas complexos de forma autônoma.
+            - **Tech Lead ou Supervisor IV:** Mais de 7 anos de experiência. Experiência com gestão de pessoas, estratégia e resultados de equipe.
 
             Exemplo de pontuação:
-            - Candidato Ideal: Experiência 100% alinhada, todas as skills, formação perfeita. Pontuação: 9.5 a 10.0.
-            - Candidato Forte: Experiência relevante, mas falta 1-2 skills. Pontuação: 8.0 a 9.4.
-            - Candidato Mediano: Pouca experiência, mas possui algumas skills. Pontuação: 6.0 a 7.9.
-            - Candidato Fraco: Experiência irrelevante, falta skills essenciais. Pontuação: Abaixo de 6.0.
+            - Candidato Ideal: Experiência 100% alinhada, todas as skills, formação perfeita. Pontuação: 9.0 a 10.0,
+            - Candidato Forte: Experiência relevante, mas falta 1-2 skills. Pontuação: 7.0-8.9,
+            - Candidato Mediano: Pouca experiência, mas possui algumas skills. Pontuação: 4.0-6.9,
+            - Candidato Fraco: Experiência irrelevante, falta skills essenciais. Pontuação: Abaixo de 4.0.
+            - Para todas as pontuações, considere o contexto geral do candidato e da vaga, o quão relevante são os pontos positivos e negativos, e ajuste a pontuação final de acordo, podendo ter variações pequenas.
 
             RETORNE APENAS O JSON.
         """
-
         response = self.generate_response(prompt, max_retries=4)
         
         if not response:
