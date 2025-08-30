@@ -29,6 +29,7 @@
         "Conhecimento basico a respeito dos exames presentes no portfolio da Mais Laudo",
         "Conhecimento basico a respeito dos softwares utilizados pelos nossos clientes para a realizacao dos exames"
       ],
+      "nivel": "junior: 1 a 3 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -66,6 +67,7 @@
         "Dominio de CRM ex Pipedrive Hubspot ou similares"
       ],
       "local": "Juiz de Fora - MG",
+      "nivel": "junior: 1 a 3 anos",
       "disponibilidade": "Hibrido"
     },
     "3": {
@@ -99,6 +101,7 @@
         "Softwares utilizados pelos nossos clientes para a realizacao dos exames",
         "Integracoes existentes na Mais Laudo"
       ],
+      "nivel": "junior: 1 a 3 anos + pleno 3 a 5 anos + senior mais de 5 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -132,6 +135,7 @@
         "Metodologias ageis Scrum Kanban",
         "Ferramentas de gestao"
       ],
+      "nivel": "junior: 1 a 3 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -166,6 +170,7 @@
         "Conhecimento basico a respeito dos exames presentes no portfolio da Mais Laudo",
         "Conhecimento basico a respeito dos softwares utilizados pelos nossos clientes para a realizacao dos exames"
       ],
+      "nivel": "junior: 1 a 3 anos + pleno 3 a 5 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -214,6 +219,7 @@
         "Nocoes de design e usabilidade textual para midias digitais",
         "Desejavel: nocao de edicao de imagens e videos (Canva, CapCut, etc.)"
       ],
+      "nivel": "junior: 1 a 3 anos + pleno 3 a 5 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -250,6 +256,7 @@
         "SQL basico/intermediario para analise de dados",
         "Ferramentas visuais: Canva, Figma, Photoshop"
       ],
+      "nivel": "junior: 1 a 3 anos + pleno 3 a 5 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -286,6 +293,7 @@
           "Edicao de video (CapCut, Adobe Premiere, Final Cut)",
           "Edicao de imagem (Corel Draw, Canva, Photoshop, Figma)"
       ],
+      "nivel": "junior: 1 a 3 anos + pleno 3 a 5 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -324,6 +332,7 @@
           "Noções de design e usabilidade textual",
           "Desejavel: nocao basica de edicao de imagens e videos (Canva, CapCut, etc.)"
       ],
+      "nivel": "estagio: estudante + menos de 1 ano + mais de um ano porém em experiencias de outras areas ou academicas, estagios, projetos de extensão",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -354,6 +363,7 @@
         "Conhecimento basico em logica de programacao",
         "Conceitos de versionamento ex Git e integracao continua"
       ],
+      "nivel": "junior: 1 a 3 anos + pleno 3 a 5 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -410,6 +420,7 @@
           "Lideranca tecnica pontual",
           "Seguranca e governanca de dados"
       ],
+      "nivel": "senior: mais de 5 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -459,6 +470,7 @@
         "DevOps e Infra",
         "Datadog"
       ],
+      "nivel": "pleno: pleno 3 a 5 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -499,6 +511,7 @@
         "Backend (implementacoes simples)",
         "Docker (nocoes basicas)"
       ],
+      "nivel": "junior: 1 a 3 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -566,6 +579,7 @@
         "Mentoria e desenvolvimento da equipe",
         "Tech Lead"
       ],
+      "nivel": "senior: mais de 7 anos + líder/supervisor: mais de 7 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     },
@@ -595,6 +609,7 @@
         "Emissao de notas fiscais conhecimento de rotinas bancarias emissao de boletos e retornos bancarios",
         "Conhecimento básico em gestão de pessoas"
       ],
+      "nivel": "junior: 1 a 3 anos",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
   },
@@ -623,6 +638,7 @@
         "Ferramentas e Ambientes de Desenvolvimento",
         "Frontend Frameworks (basico)"
       ],
+      "nivel": "estagio: estudante + menos de 1 ano + mais de um ano porém em experiencias de outras areas ou academicas, estagios, projetos de extensão",
       "local": "Juiz de Fora - MG",
       "disponibilidade": "Hibrido"
     }
