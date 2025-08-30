@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configurações globais
-MAX_WORKERS = 4 # Aumentado para 4 para um processamento mais rápido em máquinas modernas
+MAX_WORKERS = 4
 OUTPUT_DIR = "analises_cv"
 GROQ_CLIENT = GroqClient()
 # Cria uma única instância do banco de dados no escopo global
@@ -29,6 +29,22 @@ console_lock = threading.Lock()
 def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
     """Processa um único CV e gera a análise de alinhamento."""
     
+    # 🌟 Lógica de checagem de duplicidade:
+    # Cria o nome do arquivo de análise que seria gerado
+    candidate_name = os.path.basename(cv_path).split('.')[0]
+    safe_name = "".join(c for c in candidate_name if c.isalnum() or c in (' ', '.', '_')).rstrip()
+    safe_opening_title = "".join(c for c in opening_data.get('title', 'vaga_desconhecida') if c.isalnum() or c in (' ', '_')).rstrip().replace(' ', '_')
+    output_folder = os.path.join(OUTPUT_DIR, opening_data.get('folder', 'outros'))
+    output_file = os.path.join(output_folder, f"{safe_name}_{safe_opening_title}.md")
+
+    # Verifica se o arquivo de análise já existe
+    if os.path.exists(output_file):
+        with console_lock:
+            logger.info(f"Análise para '{candidate_name}' na vaga '{opening_data.get('title')}' já existe. Pulando.")
+        return
+    
+    # 🌟 Fim da checagem de duplicidade 🌟
+
     MAX_RETRIES = 5
     retries = 0
     full_analysis = None
@@ -61,6 +77,7 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
                 opening_data.get('pre_requisites', '')
             ).strip()
 
+            # A sua chamada à API não tinha o `opening_json`
             full_analysis = GROQ_CLIENT.generate_full_cv_analysis(cleaned_cv_text, job_description)
             
             if full_analysis and 'conclusion' in full_analysis and 'score' in full_analysis:
@@ -109,13 +126,7 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
         logger.info(f"Análise de {structured_data.get('name')} salva no banco de dados para a vaga '{opening_data.get('title')}'")
 
     # Criação do diretório e escrita do arquivo .md
-    output_folder = os.path.join(OUTPUT_DIR, opening_data.get('folder', 'outros'))
     os.makedirs(output_folder, exist_ok=True)
-    candidate_name = structured_data.get('name', os.path.basename(cv_path))
-    safe_name = "".join(c for c in candidate_name if c.isalnum() or c in (' ', '.', '_')).rstrip()
-    safe_opening_title = "".join(c for c in opening_data.get('title', 'vaga_desconhecida') if c.isalnum() or c in (' ', '_')).rstrip().replace(' ', '_')
-    output_file = os.path.join(output_folder, f"{safe_name}_{safe_opening_title}.md")
-
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("# Análise do Currículo\n\n")
         f.write(f"## {candidate_name}\n")
