@@ -4,7 +4,7 @@ import concurrent.futures
 import logging
 import json
 from typing import Dict, Any
-from ai_prompts import GroqClient 
+from ai_prompts import GroqClient
 from utils_cv import extract_text_from_file
 from openings_db_manager import load_openings_db
 from database import AnalysisDatabase
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 MAX_WORKERS = 4
 OUTPUT_DIR = "analises_cv"
 GROQ_CLIENT = GroqClient()
+
 # Cria uma única instância do banco de dados no escopo global
 database = AnalysisDatabase(db_path='applicants.json')
 # Lock para garantir que a escrita no console não se misture
@@ -110,7 +111,7 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
         'cv_path': cv_path,
         'content': conclusion
     }
-    brief_id = database.add_brief_data(brief_data)
+    brief_id = database.add_brief_data(brief_data=brief_data, file_path=cv_path)
 
     analysis_to_save = {
         "name": structured_data.get('name'),

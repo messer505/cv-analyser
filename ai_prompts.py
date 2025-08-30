@@ -84,7 +84,6 @@ class GroqClient:
         self._full_analysis_cache = {}
 
     def _wait_for_rate_limit(self):
-        """Rate limiting inteligente e conservador"""
         current_time = time.time()
         elapsed = current_time - self.last_request_time
         
@@ -97,11 +96,8 @@ class GroqClient:
         
         self.last_request_time = time.time()
         self.request_count += 1
-    
+
     def generate_response(self, prompt: str, max_retries: int = 5) -> str:
-        """
-        Método base para geração de respostas com backoff exponencial para rate limits.
-        """
         base_wait_time = 2
         for attempt in range(max_retries):
             try:
