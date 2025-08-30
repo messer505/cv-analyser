@@ -28,4 +28,5 @@ dist/
 # Banco de CVs baixados
 banco-de-talentos/
 
+# Cada análise baixada
 analises_cv/
