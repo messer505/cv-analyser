@@ -33,7 +33,7 @@ def load_job_openings() -> Dict[str, Any]:
             data = json.load(f)
             
             if "openings" not in data or not isinstance(data["openings"], dict):
-                logger.error(f"Erro: A chave 'openings' não foi encontrada ou não é um dicionário em '{json_file_path}'.")
+                logger.error("Erro: A chave 'openings' não foi encontrada ou não é um dicionário em '{json_file_path}'.")
                 return {}
             
             openings_dict = data["openings"]
@@ -73,7 +73,7 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
 
         cv_text = extract_text_from_file(cv_path)
         
-        if not cv_text or len(cv_text.split()) < 50: # Verificação para um texto minimamente aceitável
+        if not cv_text or len(cv_text.split()) < 50:
             with console_lock:
                 logger.error(f"Falha na extração de texto do CV {os.path.basename(cv_path)} ou conteúdo muito curto. Pulando.")
             return
@@ -97,9 +97,15 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
                 opening_data.get('pre_requisites', '')
             ).strip()
 
-            full_analysis = GROQ_CLIENT.generate_full_cv_analysis(cleaned_cv_text, job_description)
+            # Passa a descrição da vaga com o campo 'nivel' incluído
+            opening_json = json.dumps({
+                "title": opening_data.get('title', ''),
+                "description": job_description,
+                "nivel": opening_data.get('nivel', 'não especificado')
+            })
+
+            full_analysis = GROQ_CLIENT.generate_full_cv_analysis(cleaned_cv_text, opening_json)
             
-            # Verifica se a resposta é válida
             if full_analysis and 'conclusion' in full_analysis and 'score' in full_analysis:
                 break 
             
@@ -132,25 +138,25 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
     output_file = os.path.join(output_folder, f"{safe_name}_{safe_opening_title}.md")
 
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(f"# Análise do Currículo\n\n")
+        f.write("# Análise do Currículo\n\n")
         f.write(f"## {candidate_name}\n")
         f.write(f"**Vaga:** {opening_data.get('title', 'N/A')}\n") 
         f.write(f"**Pontuação:** {score:.2f}/10\n")
         f.write(f"**Tempo de Experiência:** {total_experience_years} anos\n\n")
-        f.write(f"---\n\n")
-        f.write(f"## Resumo do Candidato\n")
+        f.write("---\n\n")
+        f.write("## Resumo do Candidato\n")
         
-        f.write(f"### Nome Completo\n")
+        f.write("### Nome Completo\n")
         f.write(f"{structured_data.get('name', 'Nenhuma informação disponível')}\n\n")
-        f.write(f"### Habilidades Técnicas\n")
+        f.write("### Habilidades Técnicas\n")
         f.write(", ".join(structured_data.get('hard_skills', [])))
-        f.write(f"\n\n### Habilidades Comportamentais\n")
+        f.write("\n\n### Habilidades Comportamentais\n")
         f.write(", ".join(structured_data.get('soft_skills', [])))
-        f.write(f"\n\n### Formação Principal\n")
+        f.write("\n\n### Formação Principal\n")
         f.write(f"{structured_data.get('formal_education', 'Nenhuma informação disponível')}\n\n")
         
-        f.write(f"---\n\n")
-        f.write(f"## Conclusão\n")
+        f.write("---\n\n")
+        f.write("## Conclusão\n")
         f.write(conclusion)
         
     with console_lock:
@@ -206,7 +212,7 @@ def main():
             except Exception as e:
                 logger.error(f"Uma das tarefas de processamento falhou: {e}")
 
-    logger.info(f"## Processamento de todos os currículos de desenvolvimento para as vagas relevantes concluído. ##\n")
+    logger.info("## Processamento de todos os currículos de desenvolvimento para as vagas relevantes concluído. ##\n")
 
 if __name__ == "__main__":
     main()

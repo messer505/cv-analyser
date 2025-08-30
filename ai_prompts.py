@@ -2,7 +2,7 @@ import time
 import re
 import json
 import unicodedata
-import random # <--- Adicione esta linha
+import random
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
@@ -70,14 +70,14 @@ def normalize_text(text: str) -> str:
 
 # ------------------ CLIENTE GROQ COMPATÍVEL -----------------
 class GroqClient:
-    def __init__(self, model_id: str = 'llama-3.1-8b-instant') -> None:
+    def __init__(self, model_id: str ='openai/gpt-oss-20b') -> None: # Linha alterada
         self.client = ChatGroq(
             model=model_id,
             max_tokens=6000,
             temperature=0.1
         )
         self.last_request_time = 0
-        self.min_interval = 10.0  # Aumente este valor para 10 segundos ou mais
+        self.min_interval = 10.0
         self.request_count = 0
         
         # Cache para análises completas
@@ -97,11 +97,12 @@ class GroqClient:
         
         self.last_request_time = time.time()
         self.request_count += 1
+    
     def generate_response(self, prompt: str, max_retries: int = 5) -> str:
         """
         Método base para geração de respostas com backoff exponencial para rate limits.
         """
-        base_wait_time = 2  # Tempo de espera base em segundos
+        base_wait_time = 2
         for attempt in range(max_retries):
             try:
                 self._wait_for_rate_limit()
@@ -116,8 +117,7 @@ class GroqClient:
                 
                 # Checa se o erro é de rate limit
                 if any(keyword in error_msg for keyword in ["rate limit", "too many requests", "quota"]):
-                    # Implementação do backoff exponencial
-                    wait_time = base_wait_time * (2 ** attempt) + random.uniform(0, 1) # 'random' precisa ser importado
+                    wait_time = base_wait_time * (2 ** attempt) + random.uniform(0, 1)
                     logger.info(f"Rate limit detectado. Tentativa {attempt+1}. Aguardando {wait_time:.2f}s...")
                     time.sleep(wait_time)
                 elif "timeout" in error_msg:
@@ -143,27 +143,28 @@ class GroqClient:
         # Parse da vaga
         try:
             opening_data = json.loads(opening_json)
-            opening_text = f"Vaga: {opening_data.get('title', '')}\nDescrição: {opening_data.get('description', '')}"
+            # Adiciona o nível na descrição da vaga para a IA ter como referência
+            opening_text = f"Vaga: {opening_data.get('title', '')}\nNível exigido: {opening_data.get('nivel', 'não especificado')}\nDescrição: {opening_data.get('description', '')}"
         except:
             opening_text = opening_json[:1500]
         
         prompt = f"""
-            SISTEMA: Você é um especialista em RH, rigoroso e justo, responsável por analisar currículos e atribuir notas de forma precisa, evitando dar notas muito semelhantes. A pontuação deve refletir principalmente o alinhamento do candidato à **senioridade exigida pela vaga**.  
+            SISTEMA: Você é um especialista em RH, rigoroso e justo, responsável por analisar currículos e atribuir notas de forma precisa, evitando dar notas muito semelhantes. A pontuação deve refletir principalmente o alinhamento do candidato à **senioridade exigida pela vaga**. 
 
-            ATENÇÃO:  
-            - Um candidato júnior para uma vaga sênior DEVE ter nota final baixa (1.0–3.0).  
-            - Um candidato sênior para uma vaga júnior DEVE ter nota final mediana (4.0–6.0).  
-            - O tempo total de experiência é o principal critério de ajuste final da nota.  
+            ATENÇÃO: 
+            - Um candidato júnior para uma vaga sênior DEVE ter nota final baixa (1.0–3.0). 
+            - Um candidato sênior para uma vaga júnior DEVE ter nota final mediana (4.0–6.0). 
+            - O tempo total de experiência é o principal critério de ajuste final da nota. 
 
-            TAREFA: Compare o CV com a VAGA e retorne **APENAS JSON válido** (sem explicações, sem markdown, sem texto extra).  
+            TAREFA: Compare o CV com a VAGA e retorne **APENAS JSON válido** (sem explicações, sem markdown, sem texto extra). 
 
-            CURRÍCULO:  
-            {cv_text}  
+            CURRÍCULO: 
+            {cv_text} 
 
-            VAGA:  
-            {opening_text}  
+            VAGA: 
+            {opening_text} 
 
-            FORMATO DE SAÍDA:  
+            FORMATO DE SAÍDA: 
             {{
             "conclusion": "## Pontos de Alinhamento\\n- [3-4 pontos específicos]\\n\\n## Pontos de Desalinhamento\\n- [2-3 pontos específicos]\\n\\n## Pontos de Atenção\\n- [2-3 observações importantes]",
             "score": [número entre 0.0 e 10.0],
@@ -174,63 +175,62 @@ class GroqClient:
                 "hard_skills": ["[máx. 12 skills]"],
                 "soft_skills": ["[máx. 8 skills]"]
             }}
-            }}  
+            }} 
 
             ### CRITÉRIOS DE PONTUAÇÃO:
-            - **Experiência Profissional Relevante (Peso 2.5):** + até 3.0 se relevante, - até 3.0 se irrelevante.  
-            - **Tempo Total de Experiência (Peso 2.5):**  
-            - <1 ano: +0.5  
-            - 1–2 anos: +1.0  
-            - 2–3 anos: +1.5  
-            - 3–5 anos: +2.0  
-            - 5–10 anos: +2.5  
-            - >10 anos: +4.0  
-            - **Hard Skills (Peso 2.0):** +0.5 por skill exigida presente, -0.5 por skill obrigatória ausente.  
-            - **Soft Skills (Peso 2.0):** +0.5 por skill presente.  
-            - **Formação (Peso 1.0):** + até 1.0 se diretamente relacionada.  
-            - **Penalidades:** -0.5 a -3.0 por desalinhamentos (ex.: experiências curtas, ausência de skills essenciais, falta de projetos relevantes).  
-            - **Bônus:** +0.5 a +2.0 por diferenciais (certificações, cursos, projetos extras, estabilidade na área).  
+            - **Experiência Profissional Relevante (Peso 2.5):** + até 3.0 se relevante, - até 3.0 se irrelevante. 
+            - **Tempo Total de Experiência (Peso 2.5):** - <1 ano: +0.5 
+            - 1–2 anos: +1.0 
+            - 2–3 anos: +1.5 
+            - 3–5 anos: +2.0 
+            - 5–10 anos: +2.5 
+            - >10 anos: +4.0 
+            - **Hard Skills (Peso 2.0):** +0.5 por skill exigida presente, -0.5 por skill obrigatória ausente. 
+            - **Soft Skills (Peso 2.0):** +0.5 por skill presente. 
+            - **Formação (Peso 1.0):** + até 1.0 se diretamente relacionada. 
+            - **Penalidades:** -0.5 a -3.0 por desalinhamentos (ex.: experiências curtas, ausência de skills essenciais, falta de projetos relevantes). 
+            - **Bônus:** +0.5 a +2.0 por diferenciais (certificações, cursos, projetos extras, estabilidade na área). 
 
             ### AJUSTE FINAL (Critério Principal):
             Após calcular a nota inicial, ajuste de acordo com **tempo de experiência x senioridade da vaga**:
 
-            - **Alinhamento Ideal (tempo compatível com a vaga):** nota final 7.5–9.0.  
-            - **Muito Abaixo:** candidato com pelo menos 2 anos a menos do mínimo esperado para a vaga → nota final 1.0–3.0, mesmo que possua boas skills.  
-            - **Pouco Abaixo:** candidato até 1 ano abaixo do esperado → nota final 3.0–5.0.  
-            - **Muito Acima:** candidato com mais de 2 anos acima do ideal para a vaga → nota final 4.0–6.0.  
-            - **Pouco Acima:** candidato até 1 ano acima → nota final 6.0–7.0 (se não houver outros problemas).  
+            - **Alinhamento Ideal (tempo compatível com a vaga):** nota final 7.5–9.0. 
+            - **Muito Abaixo:** candidato com pelo menos 2 anos a menos do mínimo esperado para a vaga → nota final 1.0–3.0, mesmo que possua boas skills. 
+            - **Pouco Abaixo:** candidato até 1 ano abaixo do esperado → nota final 3.0–5.0. 
+            - **Muito Acima:** candidato com mais de 2 anos acima do ideal para a vaga → nota final 4.0–6.0. 
+            - **Pouco Acima:** candidato até 1 ano acima → nota final 6.0–7.0 (se não houver outros problemas). 
 
             ### EXEMPLOS DE AJUSTE DE PONTUAÇÃO:
-            - Vaga Júnior (1–2 anos)  
-            - Candidato com 0 anos → 1.5  
-            - Candidato com 1–2 anos → 8.0  
-            - Candidato com 4 anos (Pleno) → 5.0  
-            - Candidato com 8 anos (Sênior) → 4.5  
+            - Vaga Júnior (1–2 anos) 
+            - Candidato com 0 anos → 1.5 
+            - Candidato com 1–2 anos → 8.0 
+            - Candidato com 4 anos (Pleno) → 5.0 
+            - Candidato com 8 anos (Sênior) → 4.5 
 
-            - Vaga Pleno (3–5 anos)  
-            - Candidato com 1 ano (Júnior) → 2.0  
-            - Candidato com 3–5 anos → 8.0  
-            - Candidato com 7 anos (Sênior) → 5.5  
-            - Candidato com 12 anos (Tech Lead) → 4.5  
+            - Vaga Pleno (3–5 anos) 
+            - Candidato com 1 ano (Júnior) → 2.0 
+            - Candidato com 3–5 anos → 8.0 
+            - Candidato com 7 anos (Sênior) → 5.5 
+            - Candidato com 12 anos (Tech Lead) → 4.5 
 
-            - Vaga Sênior (>5 anos)  
-            - Candidato com 2 anos (Júnior) → 1.5  
-            - Candidato com 4 anos (Pleno) → 3.5  
-            - Candidato com 6–9 anos → 8.0  
-            - Candidato com 15 anos (Supervisor) → 5.0  
+            - Vaga Sênior (>5 anos) 
+            - Candidato com 2 anos (Júnior) → 1.5 
+            - Candidato com 4 anos (Pleno) → 3.5 
+            - Candidato com 6–9 anos → 8.0 
+            - Candidato com 15 anos (Supervisor) → 5.0 
 
             ### DEFINIÇÃO DE SENIORIDADE:
-            - Estagiário/Assistente: até 1 ano.  
-            - Analista Júnior: 1–2 anos.  
-            - Analista Pleno: 3–5 anos.  
-            - Analista Sênior: >5 anos.  
-            - Tech Lead/Supervisor: >7 anos, gestão e estratégia.  
+            - Estagiário/Assistente: até 1 ano. 
+            - Analista Júnior: 1–2 anos. 
+            - Analista Pleno: 3–5 anos. 
+            - Analista Sênior: >5 anos. 
+            - Tech Lead/Supervisor: >7 anos, gestão e estratégia. 
 
-            EXEMPLOS DE CLASSIFICAÇÃO:  
-            - Candidato ideal (alinhamento perfeito): 7.5–9.0  
-            - Desalinhado acima/abaixo: 1.0–3.0 ou 4.0–6.0 conforme o caso.  
+            EXEMPLOS DE CLASSIFICAÇÃO: 
+            - Candidato ideal (alinhamento perfeito): 7.5–9.0 
+            - Desalinhado acima/abaixo: 1.0–3.0 ou 4.0–6.0 conforme o caso. 
 
-            RETORNE SOMENTE O JSON.  
+            RETORNE SOMENTE O JSON. 
         """
         response = self.generate_response(prompt, max_retries=4)
         
@@ -239,12 +239,10 @@ class GroqClient:
             
         parsed_json = _safe_json_parse(response)
         
-        # --- LINHA CORRIGIDA: AQUI ESTAVA A CAUSA DO ERRO ---
-        # Removido 'brief_content' da validação, pois o prompt não o solicita
         if not parsed_json or not all(k in parsed_json for k in ["conclusion", "score", "structured_data"]):
             return None
     
-    # Normaliza dados
+        # Normaliza dados
         try:
             parsed_json["score"] = _clamp(float(parsed_json["score"]), 0.0, 10.0)
             
@@ -396,4 +394,3 @@ class GroqClient:
             "local": local,
             "disponibilidade": disponibilidade
         }
-    
