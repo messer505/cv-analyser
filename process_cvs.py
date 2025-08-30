@@ -2,12 +2,14 @@ import os
 import threading
 import concurrent.futures
 import logging
-from typing import Dict, Any, List
 import json
+from typing import Dict, Any
 from ai_prompts import GroqClient 
 from utils_cv import extract_text_from_file
+from openings_db_manager import load_openings_db
+from database import AnalysisDatabase
 
-# Configuração de logging
+# ---------- CONFIGURAÇÃO ----------
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -15,51 +17,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configurações globais
-MAX_WORKERS = 1
+MAX_WORKERS = 4 # Aumentado para 4 para um processamento mais rápido em máquinas modernas
 OUTPUT_DIR = "analises_cv"
 GROQ_CLIENT = GroqClient()
-
-# --- CARREGAMENTO DO ARQUIVO DE VAGAS ---
-def load_job_openings() -> Dict[str, Any]:
-    """
-    Carrega os dados das vagas do arquivo JSON e retorna um dicionário
-    mapeando o título da vaga para seus dados.
-    """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    json_file_path = os.path.join(script_dir, 'openings_db.json')
-    
-    try:
-        with open(json_file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
-            if "openings" not in data or not isinstance(data["openings"], dict):
-                logger.error("Erro: A chave 'openings' não foi encontrada ou não é um dicionário em '{json_file_path}'.")
-                return {}
-            
-            openings_dict = data["openings"]
-            
-            processed_openings = {}
-            for key, job in openings_dict.items():
-                if 'title' in job and 'id' in job and 'folder' in job:
-                    processed_openings[job['title']] = job
-                else:
-                    logger.warning(f"Vaga com ID '{key}' tem formato inválido. Pulando.")
-
-            return processed_openings
-
-    except FileNotFoundError:
-        logger.error(f"Erro: O arquivo '{json_file_path}' não foi encontrado.")
-        return {}
-    except json.JSONDecodeError:
-        logger.error(f"Erro: O arquivo '{json_file_path}' não é um JSON válido.")
-        return {}
-
-JOB_OPENINGS = load_job_openings()
-# --- FIM DO CARREGAMENTO ---
-
+# Cria uma única instância do banco de dados no escopo global
+database = AnalysisDatabase(db_path='applicants.json')
 # Lock para garantir que a escrita no console não se misture
 console_lock = threading.Lock()
 
+# ---------- FUNÇÃO DE PROCESSAMENTO ----------
 def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
     """Processa um único CV e gera a análise de alinhamento."""
     
@@ -78,7 +44,6 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
                 logger.error(f"Falha na extração de texto do CV {os.path.basename(cv_path)} ou conteúdo muito curto. Pulando.")
             return
 
-        # Limita e limpa o texto para garantir uma requisição segura
         cleaned_cv_text = ' '.join(cv_text.split()[:4000])
         
     except Exception as e:
@@ -89,7 +54,6 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
     # Lógica de retentativa para a chamada da API
     while retries < MAX_RETRIES:
         try:
-            # Concatena os campos relevantes para a descrição da vaga
             job_description = (
                 opening_data.get('intro', '') + ' ' + 
                 opening_data.get('main_activities', '') + ' ' + 
@@ -97,14 +61,7 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
                 opening_data.get('pre_requisites', '')
             ).strip()
 
-            # Passa a descrição da vaga com o campo 'nivel' incluído
-            opening_json = json.dumps({
-                "title": opening_data.get('title', ''),
-                "description": job_description,
-                "nivel": opening_data.get('nivel', 'não especificado')
-            })
-
-            full_analysis = GROQ_CLIENT.generate_full_cv_analysis(cleaned_cv_text, opening_json)
+            full_analysis = GROQ_CLIENT.generate_full_cv_analysis(cleaned_cv_text, job_description)
             
             if full_analysis and 'conclusion' in full_analysis and 'score' in full_analysis:
                 break 
@@ -128,8 +85,30 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
     score = full_analysis.get('score', 0.0)
     structured_data = full_analysis.get('structured_data', {})
     total_experience_years = full_analysis.get('total_experience_years', 'Não avaliado')
+    
+    # Adiciona a análise ao banco de dados - Lógica movida para dentro da função
+    opening_id = opening_data.get("id")
+    brief_data = {
+        'cv_text': cv_text,
+        'cv_path': cv_path,
+        'content': conclusion
+    }
+    brief_id = database.add_brief_data(brief_data)
 
-    # Criação do diretório e escrita do arquivo
+    analysis_to_save = {
+        "name": structured_data.get('name'),
+        "formal_education": structured_data.get('formal_education'),
+        "hard_skills": structured_data.get('hard_skills'),
+        "soft_skills": structured_data.get('soft_skills'),
+        "score": score,
+        "total_experience_years": total_experience_years
+    }
+    
+    database.add_analysis_data(opening_id, brief_id, analysis_to_save)
+    with console_lock:
+        logger.info(f"Análise de {structured_data.get('name')} salva no banco de dados para a vaga '{opening_data.get('title')}'")
+
+    # Criação do diretório e escrita do arquivo .md
     output_folder = os.path.join(OUTPUT_DIR, opening_data.get('folder', 'outros'))
     os.makedirs(output_folder, exist_ok=True)
     candidate_name = structured_data.get('name', os.path.basename(cv_path))
@@ -162,57 +141,55 @@ def process_single_cv(cv_path: str, opening_data: Dict[str, Any]):
     with console_lock:
         logger.info(f"Análise de {candidate_name} para a vaga '{opening_data.get('title', 'N/A')}' salva em {output_file}")
 
+# ---------- FUNÇÃO PRINCIPAL ----------
 def main():
-    """Função principal para processar currículos de desenvolvimento para todas as vagas de desenvolvimento."""
+    """Função principal para processar todos os currículos para todas as vagas."""
     
     cv_base_dir = "banco-de-talentos"
-    
-    if not JOB_OPENINGS:
+    job_openings = load_openings_db()
+
+    if not job_openings:
         logger.error("Nenhuma vaga encontrada para processamento. Verifique o arquivo 'openings_db.json'.")
         return
 
-    # 1. Identifica a pasta de currículos de desenvolvimento
-    development_folder_name = "desenvolvimento"
-    folder_path = os.path.join(cv_base_dir, development_folder_name)
+    # Mapeia as pastas para as vagas para um loop mais eficiente
+    folder_to_opening = {data['folder']: data for data in job_openings.values()}
+
+    all_tasks = []
     
-    if not os.path.exists(folder_path):
-        logger.error(f"Diretório de currículos de desenvolvimento não encontrado: {folder_path}. Abortando.")
-        return
-    
-    # 2. Coleta todos os currículos da pasta de desenvolvimento
-    cv_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(('.pdf', '.docx'))]
-    if not cv_files:
-        logger.warning(f"Nenhum currículo encontrado no diretório '{folder_path}'.")
-        return
+    # Itera sobre as pastas de currículos
+    for folder_name in os.listdir(cv_base_dir):
+        folder_path = os.path.join(cv_base_dir, folder_name)
 
-    # 3. Coleta todas as vagas que são de desenvolvimento
-    development_openings = [
-        data for title, data in JOB_OPENINGS.items()
-        if data.get('folder', '').lower() == development_folder_name
-    ]
+        if not os.path.isdir(folder_path) or folder_name not in folder_to_opening:
+            continue
 
-    if not development_openings:
-        logger.error("Nenhuma vaga de desenvolvimento encontrada no openings_db.json. Abortando.")
-        return
-
-    logger.info(f"## Processando {len(cv_files)} currículos para {len(development_openings)} vagas de desenvolvimento. ##")
-
-    # 4. Inicia o processamento paralelo
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = []
-        # Loop aninhado: para cada currículo, processe para cada vaga de desenvolvimento
-        for cv_file in cv_files:
-            for opening_data in development_openings:
-                futures.append(executor.submit(process_single_cv, cv_file, opening_data))
+        opening_data = folder_to_opening[folder_name]
+        cv_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(('.pdf', '.docx'))]
         
-        # Aguarda todas as tarefas serem concluídas
+        if not cv_files:
+            logger.warning(f"Nenhum currículo encontrado no diretório '{folder_path}'.")
+            continue
+
+        logger.info(f"## Processando {len(cv_files)} currículos para a vaga '{opening_data['title']}' (Pasta: {folder_name}). ##")
+        
+        for cv_file in cv_files:
+            all_tasks.append((cv_file, opening_data))
+
+    if not all_tasks:
+        logger.info("Nenhum currículo para processar. Finalizando.")
+        return
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(process_single_cv, cv_file, opening_data) for cv_file, opening_data in all_tasks]
+        
         for future in concurrent.futures.as_completed(futures):
             try:
                 future.result()
             except Exception as e:
                 logger.error(f"Uma das tarefas de processamento falhou: {e}")
-
-    logger.info("## Processamento de todos os currículos de desenvolvimento para as vagas relevantes concluído. ##\n")
+    
+    logger.info("## Processamento de todos os currículos concluído. ##\n")
 
 if __name__ == "__main__":
     main()
