@@ -11,6 +11,7 @@ class Analysis(BaseModel):
     soft_skills: List[str]
     hard_skills: List[str]
     local: str
+    nivel: str
     disponibilidade: str
     score: float
     

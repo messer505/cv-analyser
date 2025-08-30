@@ -11,5 +11,6 @@ class Opening(BaseModel):
     pre_requisites: str
     soft_skills: List[str]
     hard_skills: List[str]
+    nivel: str
     local: str
     disponibilidade: str
